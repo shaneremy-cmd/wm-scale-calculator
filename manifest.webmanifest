@@ -1,0 +1,9 @@
+{
+  "name": "Weights & Measures Scale Calculator",
+  "short_name": "W&M Calc",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f5f7fa",
+  "theme_color": "#17365d"
+}

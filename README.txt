@@ -1,0 +1,1 @@
+Upload index.html, manifest.webmanifest, and sw.js to the root of a GitHub Pages repository. Then open the HTTPS Pages URL in Safari and choose Share > Add to Home Screen.
