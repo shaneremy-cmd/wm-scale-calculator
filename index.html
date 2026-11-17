@@ -1,7 +1,524 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#17365d"><link rel="manifest" href="manifest.webmanifest"><title>W&M Scale Calculator</title><style>body{font-family:system-ui;margin:auto;max-width:760px;padding:18px;background:#f5f7fa;color:#172033}.card{background:white;border:1px solid #ddd;border-radius:14px;padding:16px;margin:12px 0}.g{display:grid;grid-template-columns:1fr 1fr;gap:12px}label{display:block;font-size:13px;font-weight:650;margin-bottom:4px}input,select{width:100%;box-sizing:border-box;padding:12px;font-size:16px;border:1px solid #bbb;border-radius:8px}.big{font-size:30px;font-weight:750}.muted{color:#667085;font-size:13px}table{width:100%;border-collapse:collapse;font-size:13px}td,th{padding:9px;border-bottom:1px solid #ddd;text-align:right}td:first-child,th:first-child{text-align:left}.scroll{overflow:auto}.hide{display:none}@media(max-width:550px){.g{grid-template-columns:1fr 1fr}}</style></head><body><h1>Weights & Measures Scale Calculator</h1><p class="muted">Field aid for divisions, tolerance breakpoints, test loads and error checks.</p><div class="card g"><div><label>Configuration</label><select id="mode"><option value="single">Straight / single range</option><option value="multi">Multiple range / multi-interval</option></select></div><div><label>Class</label><select id="cls"><option>II</option><option selected>III</option><option value="IIIL">III L</option><option>IIII</option></select></div><div><label>Unit</label><select id="unit"><option>lb</option><option>kg</option><option>oz</option><option>g</option></select></div><div><label>Capacity / Range 1</label><input id="cap1" type="number" step="any" value="30"></div><div><label>Verification division (e)</label><input id="e1" type="number" step="any" value=".01"></div><div id="r2a" class="hide"><label>Range 2 capacity</label><input id="cap2" type="number" step="any" value="60"></div><div id="r2b" class="hide"><label>Range 2 e</label><input id="e2" type="number" step="any" value=".02"></div></div><div class="card"><span class="muted">Calculated divisions</span><div id="n" class="big"></div><div id="summary" class="muted"></div></div><div class="card"><b>Tolerance breakpoints</b><div class="scroll"><table><thead><tr><th>Range</th><th>Divisions</th><th>Load</th><th>Tolerance</th></tr></thead><tbody id="rows"></tbody></table></div></div><div class="card g"><div><label>Applied test load</label><input id="applied" type="number" step="any" value="10"></div><div><label>Scale indication</label><input id="indicated" type="number" step="any" value="10.01"></div><div><span class="muted">Error</span><b id="err"></b></div><div><span class="muted">Allowed / Result</span><b id="res"></b></div></div><div class="card"><b>Table 4 field calculation</b><div id="t4"></div></div><p class="muted">Field aid. Verify special applications, initial verification, device-specific requirements and enforcement decisions against the current NIST HB 44 and FDACS procedures.</p><script>
-const $=x=>document.getElementById(x),fmt=x=>Number(x.toFixed(6)).toLocaleString(undefined,{maximumFractionDigits:6});
-function bands(c){if(c==='II')return[[0,50000,1],[50000,200000,2],[200000,Infinity,3]];if(c==='III')return[[0,500,1],[500,2000,2],[2000,4000,3],[4000,Infinity,5]];if(c==='IIIL')return[[0,500,1],[500,1000,2],[1000,1500,3],[1500,Infinity,5]];return[[0,50,1],[50,100,2],[100,200,3],[200,Infinity,5]]}
-function t4(cap,u){let w,l;if(u==='lb'){if(cap<=300){w=cap;l=cap}else if(cap<=3000){w=Math.max(.25*cap,300);l=.75*cap}else if(cap<=40000){w=Math.max(.125*cap,1000);l=.5*cap}else{w=Math.max(.125*cap,10000);l=.25*cap}}else if(u==='kg'){if(cap<=150){w=cap;l=cap}else if(cap<=1500){w=Math.max(.25*cap,150);l=.75*cap}else if(cap<=20000){w=Math.max(.125*cap,500);l=.5*cap}else{w=Math.max(.125*cap,5000);l=.25*cap}}else return 'Select lb or kg for Table 4.';return `<br>Minimum known test weights: <b>${fmt(w)} ${u}</b><br>Minimum test load: <b>${fmt(l)} ${u}</b>`}
-function render(){let m=$('mode').value==='multi',c=$('cls').value,u=$('unit').value,c1=+$('cap1').value,e1=+$('e1').value,c2=+$('cap2').value,e2=+$('e2').value;$('r2a').classList.toggle('hide',!m);$('r2b').classList.toggle('hide',!m);if(!(c1>0&&e1>0))return;$('n').textContent=fmt(c1/e1);$('summary').textContent=m?`R1 0–${fmt(c1)} ${u} × ${fmt(e1)}; R2 ${fmt(c1)}–${fmt(c2)} ${u} × ${fmt(e2)}`:`${fmt(c1)} ${u} × ${fmt(e1)}`;let rs=m?[['R1',0,c1,e1],['R2',c1,c2,e2]]:[['Single',0,c1,e1]],out='';for(let r of rs){for(let b of bands(c)){let lo=r[1]+b[0]*r[3],hi=b[1]===Infinity?r[2]:Math.min(r[1]+b[1]*r[3],r[2]);if(lo>=r[2])continue;out+=`<tr><td>${r[0]}</td><td>${fmt(b[0])}–${b[1]===Infinity?'up':fmt(b[1])} e</td><td>${fmt(lo)}–${fmt(hi)} ${u}</td><td>±${b[2]} e = ±${fmt(b[2]*r[3])} ${u}</td></tr>`;if(hi>=r[2])break}}$('rows').innerHTML=out;let a=+$('applied').value,i=+$('indicated').value,r=m&&a>c1?[2,c1,c2,e2]:[1,0,c1,e1],er=i-a,div=(a-r[1])/r[3],b=bands(c).find(x=>div<=x[1]+1e-9)||bands(c).at(-1),allow=b[2]*r[3];$('err').textContent=`${er>=0?'+':''}${fmt(er)} ${u} (${er>=0?'+':''}${fmt(er/r[3])} e)`;$('res').textContent=`±${fmt(allow)} ${u} — ${Math.abs(er)<=allow+1e-10?'PASS':'FAIL'}`;$('t4').innerHTML=t4(m?c2:c1,u)}
-['mode','cls','unit','cap1','e1','cap2','e2','applied','indicated'].forEach(x=>$(x).addEventListener('input',render));render();if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js');
-</script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#17365d">
+<link rel="manifest" href="manifest.webmanifest">
+<title>W&M Scale Calculator</title>
+
+<style>
+body{
+  font-family:system-ui;
+  margin:auto;
+  max-width:760px;
+  padding:18px;
+  background:#f5f7fa;
+  color:#172033
+}
+.card{
+  background:white;
+  border:1px solid #ddd;
+  border-radius:14px;
+  padding:16px;
+  margin:12px 0
+}
+.g{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px
+}
+label{
+  display:block;
+  font-size:13px;
+  font-weight:650;
+  margin-bottom:4px
+}
+input,select{
+  width:100%;
+  box-sizing:border-box;
+  padding:12px;
+  font-size:16px;
+  border:1px solid #bbb;
+  border-radius:8px
+}
+.big{
+  font-size:30px;
+  font-weight:750
+}
+.muted{
+  color:#667085;
+  font-size:13px
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+  font-size:13px
+}
+td,th{
+  padding:9px;
+  border-bottom:1px solid #ddd;
+  text-align:right
+}
+td:first-child,th:first-child{
+  text-align:left
+}
+.scroll{overflow:auto}
+.hide{display:none}
+
+@media(max-width:550px){
+  .g{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+
+<body>
+
+<h1>Weights & Measures Scale Calculator</h1>
+<p class="muted">
+Field aid for divisions, tolerance breakpoints, test loads and error checks.
+</p>
+
+<div class="card g">
+
+<div>
+<label>Configuration</label>
+<select id="mode">
+<option value="single">Straight / single range</option>
+<option value="multi2">2 range / interval</option>
+<option value="multi3">3 range / interval</option>
+</select>
+</div>
+
+<div>
+<label>Class</label>
+<select id="cls">
+<option>II</option>
+<option selected>III</option>
+<option value="IIIL">III L</option>
+<option>IIII</option>
+</select>
+</div>
+
+<div>
+<label>Unit</label>
+<select id="unit">
+<option>lb</option>
+<option>kg</option>
+<option>oz</option>
+<option>g</option>
+</select>
+</div>
+
+<div>
+<label>Range 1 capacity</label>
+<input id="cap1" type="number" step="any" value="30">
+</div>
+
+<div>
+<label>Range 1 verification division (e)</label>
+<input id="e1" type="number" step="any" value=".01">
+</div>
+
+<div id="r2a" class="hide">
+<label>Range 2 capacity</label>
+<input id="cap2" type="number" step="any" value="60">
+</div>
+
+<div id="r2b" class="hide">
+<label>Range 2 verification division (e)</label>
+<input id="e2" type="number" step="any" value=".02">
+</div>
+
+<div id="r3a" class="hide">
+<label>Range 3 capacity</label>
+<input id="cap3" type="number" step="any" value="150">
+</div>
+
+<div id="r3b" class="hide">
+<label>Range 3 verification division (e)</label>
+<input id="e3" type="number" step="any" value=".05">
+</div>
+
+</div>
+
+<div class="card">
+<span class="muted">Range 1 calculated divisions</span>
+<div id="n" class="big"></div>
+<div id="summary" class="muted"></div>
+</div>
+
+<div class="card">
+<b>Tolerance breakpoints</b>
+<div class="scroll">
+<table>
+<thead>
+<tr>
+<th>Range</th>
+<th>Divisions</th>
+<th>Load</th>
+<th>Tolerance</th>
+</tr>
+</thead>
+<tbody id="rows"></tbody>
+</table>
+</div>
+</div>
+
+<div class="card g">
+
+<div>
+<label>Applied test load</label>
+<input id="applied" type="number" step="any" value="10">
+</div>
+
+<div>
+<label>Scale indication</label>
+<input id="indicated" type="number" step="any" value="10.01">
+</div>
+
+<div>
+<span class="muted">Error</span>
+<br>
+<b id="err"></b>
+</div>
+
+<div>
+<span class="muted">Allowed / Result</span>
+<br>
+<b id="res"></b>
+</div>
+
+</div>
+
+<div class="card">
+<b>Table 4 field calculation</b>
+<div id="t4"></div>
+</div>
+
+<p class="muted">
+Field aid. Verify special applications, initial verification,
+device-specific requirements and enforcement decisions against the
+current NIST Handbook 44 and FDACS procedures.
+</p>
+
+<script>
+
+const $ = x => document.getElementById(x);
+
+const fmt = x =>
+Number(x.toFixed(6)).toLocaleString(
+undefined,{maximumFractionDigits:6}
+);
+
+function bands(c){
+
+if(c==='II')
+return [
+[0,50000,1],
+[50000,200000,2],
+[200000,Infinity,3]
+];
+
+if(c==='III')
+return [
+[0,500,1],
+[500,2000,2],
+[2000,4000,3],
+[4000,Infinity,5]
+];
+
+if(c==='IIIL')
+return [
+[0,500,1],
+[500,1000,2],
+[1000,1500,3],
+[1500,Infinity,5]
+];
+
+return [
+[0,50,1],
+[50,100,2],
+[100,200,3],
+[200,Infinity,5]
+];
+
+}
+
+function t4(cap,u){
+
+let w,l;
+
+if(u==='lb'){
+
+if(cap<=300){
+w=cap;
+l=cap;
+}
+else if(cap<=3000){
+w=Math.max(.25*cap,300);
+l=.75*cap;
+}
+else if(cap<=40000){
+w=Math.max(.125*cap,1000);
+l=.5*cap;
+}
+else{
+w=Math.max(.125*cap,10000);
+l=.25*cap;
+}
+
+}
+
+else if(u==='kg'){
+
+if(cap<=150){
+w=cap;
+l=cap;
+}
+else if(cap<=1500){
+w=Math.max(.25*cap,150);
+l=.75*cap;
+}
+else if(cap<=20000){
+w=Math.max(.125*cap,500);
+l=.5*cap;
+}
+else{
+w=Math.max(.125*cap,5000);
+l=.25*cap;
+}
+
+}
+
+else
+return 'Select lb or kg for Table 4.';
+
+return `
+<br>
+Minimum known test weights:
+<b>${fmt(w)} ${u}</b>
+<br>
+Minimum test load:
+<b>${fmt(l)} ${u}</b>
+`;
+
+}
+
+function render(){
+
+let mode=$('mode').value;
+
+let m2 =
+mode==='multi2' ||
+mode==='multi3';
+
+let m3 =
+mode==='multi3';
+
+let c=$('cls').value;
+let u=$('unit').value;
+
+let c1=+$('cap1').value;
+let e1=+$('e1').value;
+
+let c2=+$('cap2').value;
+let e2=+$('e2').value;
+
+let c3=+$('cap3').value;
+let e3=+$('e3').value;
+
+$('r2a').classList.toggle('hide',!m2);
+$('r2b').classList.toggle('hide',!m2);
+
+$('r3a').classList.toggle('hide',!m3);
+$('r3b').classList.toggle('hide',!m3);
+
+if(!(c1>0 && e1>0))
+return;
+
+$('n').textContent=fmt(c1/e1);
+
+if(m3){
+
+$('summary').textContent =
+`R1: 0–${fmt(c1)} ${u} × ${fmt(e1)}
+ | R2: ${fmt(c1)}–${fmt(c2)} ${u} × ${fmt(e2)}
+ | R3: ${fmt(c2)}–${fmt(c3)} ${u} × ${fmt(e3)}`;
+
+}
+
+else if(m2){
+
+$('summary').textContent =
+`R1: 0–${fmt(c1)} ${u} × ${fmt(e1)}
+ | R2: ${fmt(c1)}–${fmt(c2)} ${u} × ${fmt(e2)}`;
+
+}
+
+else{
+
+$('summary').textContent =
+`${fmt(c1)} ${u} × ${fmt(e1)}`;
+
+}
+
+let rs;
+
+if(m3){
+
+rs=[
+['R1',0,c1,e1],
+['R2',c1,c2,e2],
+['R3',c2,c3,e3]
+];
+
+}
+
+else if(m2){
+
+rs=[
+['R1',0,c1,e1],
+['R2',c1,c2,e2]
+];
+
+}
+
+else{
+
+rs=[
+['Single',0,c1,e1]
+];
+
+}
+
+let out='';
+
+for(let r of rs){
+
+for(let b of bands(c)){
+
+let lo =
+r[1] + b[0]*r[3];
+
+let hi =
+b[1]===Infinity
+? r[2]
+: Math.min(
+r[1]+b[1]*r[3],
+r[2]
+);
+
+if(lo>=r[2])
+continue;
+
+out += `
+<tr>
+<td>${r[0]}</td>
+<td>
+${fmt(b[0])}–
+${b[1]===Infinity?'up':fmt(b[1])} e
+</td>
+<td>
+${fmt(lo)}–${fmt(hi)} ${u}
+</td>
+<td>
+±${b[2]} e =
+±${fmt(b[2]*r[3])} ${u}
+</td>
+</tr>
+`;
+
+if(hi>=r[2])
+break;
+
+}
+
+}
+
+$('rows').innerHTML=out;
+
+let a=+$('applied').value;
+let i=+$('indicated').value;
+
+let r;
+
+if(m3 && a>c2){
+
+r=[3,c2,c3,e3];
+
+}
+
+else if(m2 && a>c1){
+
+r=[2,c1,c2,e2];
+
+}
+
+else{
+
+r=[1,0,c1,e1];
+
+}
+
+let er=i-a;
+
+let div =
+(a-r[1])/r[3];
+
+let b =
+bands(c).find(
+x=>div<=x[1]+1e-9
+) || bands(c).at(-1);
+
+let allow =
+b[2]*r[3];
+
+$('err').textContent =
+`${er>=0?'+':''}${fmt(er)} ${u}
+(${er>=0?'+':''}${fmt(er/r[3])} e)`;
+
+$('res').textContent =
+`R${r[0]} · ±${fmt(allow)} ${u} —
+${Math.abs(er)<=allow+1e-10
+?'PASS'
+:'FAIL'}`;
+
+let maxCapacity =
+m3 ? c3 :
+m2 ? c2 :
+c1;
+
+$('t4').innerHTML =
+t4(maxCapacity,u);
+
+}
+
+[
+'mode',
+'cls',
+'unit',
+'cap1',
+'e1',
+'cap2',
+'e2',
+'cap3',
+'e3',
+'applied',
+'indicated'
+].forEach(
+x=>$(x).addEventListener(
+'input',
+render
+)
+);
+
+render();
+
+if('serviceWorker' in navigator)
+navigator.serviceWorker.register('./sw.js');
+
+</script>
+
+</body>
+</html>
